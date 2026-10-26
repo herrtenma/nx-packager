@@ -10,16 +10,15 @@ launch flows.
 
 ## Design
 
-A modern take on the 3DS home menu, with the PS5's hero treatment for the selected title.
+One screen, laid out like a console home screen (PS5-style), with the selected title's logo floating in 3D.
 
 | Part | What it shows |
 |---|---|
-| Top screen (5:3) | The selected title's logo floating in 3D. It is extruded in layers, turns toward the pointer or device tilt and sways when idle. The backdrop is tinted from the title's colours. A status bar shows LiveContainer and JIT state, counts and the clock. A caption gives the kind (port pack, built port, LiveContainer app), the full name, the state and the A action. |
-| 3D slider | The extrusion depth and parallax strength. 0 is flat, as on the 3DS. The setting is kept per user. |
-| Bottom screen (4:3) | A system row (Packager folder, Sources, Tweaks, Settings) above a 2-row shelf of tiles. Selection is an amber pulsing frame. A tile badge shows the state: ready to build, needs a dump, building (progress ring) or built port. |
-| Action bar | **Y Details** and **A** with the tile's action: Build, Add dump, Play or Install IPA. **B** goes back. |
-| Details sheet | For a port: the Packager's three checks (pack, dump, `prod.keys`) and where it is installed. For an app: LiveContainer's per-app settings (container, JIT, multitask). |
-| Wide screens | On iPad landscape the two screens sit side by side. |
+| Top bar | **Games** / **Apps** tabs; LiveContainer and JIT status, search, settings, clock. |
+| Tile row | Games: the Packager folder tile, then port packs and game apps. Apps: Install IPA, then the other LiveContainer apps. The selected tile grows, gets a white ring and shows its name. Badges show a port's state: ready to build, needs a dump, building (progress ring) or built. |
+| Hero | The selected title's logo, extruded in layers. It turns toward the pointer or device tilt and sways when idle. The backdrop is a colour field tinted from the title. Beside it (below it in portrait): kind and version, the full name, one line on its state, the main button (**Build**, **Play**, **Show folder**, **Choose IPA**) and a **⋯** menu. During a build, the button becomes the Packager's step and progress. |
+| Cards | For a port: the Packager's three checks (pack, dump, `prod.keys`) and where it installs. For an app: LiveContainer's per-app settings (container, JIT, multitask, bundle). |
+| Sizes | Wide screens and landscape phones show the logo right and the info left. Portrait phones stack the logo above the info, and everything scrolls. |
 
 Logos: a port pack can ship `art/logo.png` (a cut-out logo with transparency) and `art/colors.json`. Without them,
 Homeport sets the port's name in an extruded wordmark, as the prototype does. The tile icon can come from the
@@ -57,9 +56,9 @@ Tweaks, Settings). The relevant pieces:
 5. **Home tab**: `HomeportView` becomes the first tab and the default. The shelf merges `NxPortModel`'s ports with
    `DataManager.shared.model.apps`. The existing Apps list stays one tab over for power features (folders,
    hidden apps, containers).
-6. **Theme**: the floating logo is a `SceneKit`-free SwiftUI stack. There are N copies of the wordmark (or of
-   `logo.png` tinted down) offset in z by `rotation3DEffect` plus per-layer offsets, driven by `CMMotionManager`
-   attitude (pointer on iPad). The 3D slider value lives in `@AppStorage("homeport.depth")`.
+6. **Floating logo**: a plain SwiftUI stack, no SceneKit. N copies of the wordmark (or of `logo.png`, tinted
+   darker) are offset per layer and turned with `rotation3DEffect`, driven by `CMMotionManager` attitude (pointer
+   on iPad).
 
 ### Fallback (no fork)
 
