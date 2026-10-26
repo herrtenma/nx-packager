@@ -64,6 +64,7 @@ A module's *image* is the NSO's segments placed at their memory offsets, decompr
 | `modules[].output_sha256` | The result must hash to this before it goes into the slot: the app gets exactly the code the port was built and tested with. |
 | `modules[].layout` | Optional: `[[from, to, size], ...]`. The port moved parts of the module (e.g. a segment): the image becomes `image_size` zero bytes with each range of the game's image copied from `from` to `to`, before the patch is applied. |
 | `modules[].hooks` | Byte ranges of the `__text` section the Packager must not overwrite (the port's stubs). |
+| `modules[].copies` | Optional: `{"section": "__TEXT,__nxorig", "words": [[from, to], ...]}`. Words of the finished image the port's app also runs elsewhere (e.g. the instructions a hook stub displaced, which the hook's trampoline runs before jumping back): each 4-byte word at image offset `from` is copied to offset `to` of that Mach-O section, which the shared app has zero-filled. |
 
 ## Ports that need the game's data (`update`, `data`)
 
@@ -112,7 +113,7 @@ built from this runtime generate them with `tools/nxrecomp/mkpack.py`.
 1. Reads `nxport.json`; checks the dump: title ID, version, format.
 2. For each module: extracts and decompresses it from the dump's ExeFS (or takes it from the pack), checks
    `input_sha256`, applies the patch, checks `output_sha256`.
-3. Writes each image into its slot of the app's executable (hook ranges kept).
+3. Writes each image into its slot of the app's executable (hook ranges kept), and the module's `copies`.
 4. Zips `Payload/` into the IPA. The ad-hoc signature is no longer valid; the installer (SideStore, AltStore,
    LiveContainer) signs the app with the user's own certificate.
 

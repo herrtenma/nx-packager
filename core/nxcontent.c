@@ -422,7 +422,11 @@ int nx_dump_info(NxDump *d, NxGameInfo *info, char *err, size_t errlen) {
     if (cnmt && n >= 0x10) memcpy(&info->version, cnmt + 8, 4);
     free(cnmt);
     if (!prog) return 0;
+    // (newer NCAs, e.g. BOTW 1.9.0's control NCA, may LZ4-compress the section: compression info at fs header +0x178,
+    // not read here; the name and display version are only for messages)
     Nca *ctl = find_nca(d, NCA_CONTROL, 0);
+    static const uint8_t zero[0x28];
+    if (ctl && memcmp(fs_header(ctl, 0) + 0x178, zero, sizeof zero)) ctl = NULL;
     uint8_t *nacp = ctl && !section_open(d, ctl, 0, &s) ? romfs_file(d, &s, "control.nacp", &n) : NULL;
     if (nacp && n >= 0x4000) {
         memcpy(info->display_version, nacp + 0x3060, 15);

@@ -72,7 +72,8 @@ NSDictionary *NxDumpInfo(NSString *dumpPath, NSString *keysPath, NSString **erro
     static NSString *const kinds[] = {@"base", @"update", @"aoc"};
     return @{@"title_id" : [NSString stringWithFormat:@"%016llX", (unsigned long long)gi.title_id], @"version" : @(gi.version),
              @"base_title_id" : [NSString stringWithFormat:@"%016llX", (unsigned long long)gi.base_title_id],
-             @"kind" : kinds[gi.kind], @"display_version" : @(gi.display_version), @"name" : @(gi.name), @"format" : @(gi.format)};
+             @"kind" : kinds[gi.kind], @"display_version" : @(gi.display_version) ?: @"", @"name" : @(gi.name) ?: @"",
+             @"format" : @(gi.format)};
 }
 
 NSString *NxDumpMismatch(NSDictionary *manifest, NSDictionary *info) {
@@ -194,13 +195,29 @@ static BOOL write_ipa(NSString *packPath, NSDictionary *m, NxDump *d, NSString *
             ok = fail(error, @"The port pack's app doesn't have room for the game (it was built for another version).");
         if (ok) {
             NSArray *hooks = mod[@"hooks"];
+            uint64_t *hr = malloc(sizeof *hr * (2 * hooks.count + 1));   // [start, end) of each hook stub
+            for (NSUInteger k = 0; k < hooks.count; k++)
+                hr[2 * k] = [hooks[k][@"offset"] unsignedLongLongValue], hr[2 * k + 1] = hr[2 * k] + [hooks[k][@"size"] unsignedLongLongValue];
             for (uint64_t o = 0; o < tsize && o < img_n; o += 4) {
                 BOOL hook = NO;
-                for (NSDictionary *h in hooks)
-                    hook |= o >= [h[@"offset"] unsignedLongLongValue] && o < [h[@"offset"] unsignedLongLongValue] + [h[@"size"] unsignedLongLongValue];
+                for (NSUInteger k = 0; k < hooks.count && !hook; k++) hook = o >= hr[2 * k] && o < hr[2 * k + 1];
                 if (!hook) memcpy(bin + toff + o, img + o, MIN(4, img_n - o));
             }
+            free(hr);
             if (img_n > tsize) memcpy(bin + doff, img + tsize, img_n - tsize);
+        }
+        // words of the image the port also runs elsewhere (a hook's displaced instructions, in its trampoline)
+        NSDictionary *copies = mod[@"copies"];
+        if (ok && [copies isKindOfClass:NSDictionary.class]) {
+            NSArray *sect = [copies[@"section"] componentsSeparatedByString:@","];
+            uint64_t coff = 0, csize = 0;
+            if (sect.count != 2 || !macho_section(bin, bin_n, [sect[0] UTF8String], [sect[1] UTF8String], &coff, &csize))
+                ok = fail(error, @"The port pack's app is damaged.");
+            for (NSArray *w in ok ? copies[@"words"] : nil) {
+                uint64_t from = [w[0] unsignedLongLongValue], to = [w[1] unsignedLongLongValue];
+                if (from + 4 > img_n || to + 4 > csize) { ok = fail(error, @"The port pack is damaged."); break; }
+                memcpy(bin + coff + to, img + from, 4);
+            }
         }
         free(img);
     }
@@ -301,7 +318,7 @@ NSDictionary *NxBuildPlan(NSString *packPath, NSArray<NSString *> *dumps, NSStri
         problem = [NSString stringWithFormat:@"The %@ update %@ (.nsp, from your own Switch) is needed.", g[@"name"], upd[@"display_version"]];
     // space: the RomFS grows a few % with ASTC (Yaz0 re-compressed); DLC the same; the stub and the app are small
     uint64_t romfs = 0, aocIn = 0;
-    if (base && !problem) {
+    if (base && !problem && data[@"romfs"]) {
         char err[256] = "";
         NxDump *b = nx_dump_open(base.fileSystemRepresentation, keysPath.fileSystemRepresentation, err, sizeof err);
         NxDump *u = update ? nx_dump_open(update.fileSystemRepresentation, keysPath.fileSystemRepresentation, err, sizeof err) : NULL;
