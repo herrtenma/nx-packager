@@ -45,6 +45,9 @@ build/nxpack tomodachi.nxport game.xci prod.keys Tomodachi.ipa
 
 The pack format is in [docs/PORT_PACKS.md](docs/PORT_PACKS.md).
 
+Homeport, a launcher that merges the Packager into LiveContainer, is planned in [docs/LAUNCHER.md](docs/LAUNCHER.md),
+with a UI prototype in [design/homeport.html](design/homeport.html).
+
 ## Source
 
 | | |

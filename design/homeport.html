@@ -1,0 +1,738 @@
+<title>Homeport Launcher</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@800&family=Bungee&family=Fredoka:wght@600;700&family=JetBrains+Mono:wght@500&family=Lilita+One&family=M+PLUS+Rounded+1c:wght@500;700;800&display=swap">
+<!--
+  Homeport: one launcher for LiveContainer apps and Packager-built ports.
+  Prototype of the iOS UI (design/homeport.html). Plan: docs/LAUNCHER.md.
+  Layout: a 3DS opened flat. Portrait: top screen (5:3) over hinge over bottom screen (4:3, inset).
+          Wide landscape: top screen left, bottom screen right.
+-->
+<style>
+  @property --c1 { syntax: "<color>"; inherits: true; initial-value: #ff8db3; }
+  @property --c2 { syntax: "<color>"; inherits: true; initial-value: #ffd66b; }
+
+  :root {
+    /* color */
+    --page: #dfe4eb;
+    --shell: #eef1f5;
+    --shell-edge: #cfd5de;
+    --bezel: #1b1f27;
+    --ink: #1b2130;
+    --muted: #5d677a;
+    --sky-1: #cdeafa;
+    --sky-2: #f5fbff;
+    --stripe: rgba(255, 255, 255, .6);
+    --panel: rgba(255, 255, 255, .74);
+    --panel-line: rgba(255, 255, 255, .95);
+    --panel-shade: rgba(27, 33, 48, .12);
+    --select: #ffc23d;
+    --select-ink: #3b2900;
+    --bar: #ffd54a;
+    --bar-ink: #3b2900;
+    --ok: #1fa463;
+    --bad: #e5483d;
+    --cloud: rgba(255, 255, 255, .9);
+    /* type */
+    --f-ui: "M PLUS Rounded 1c", ui-rounded, "SF Pro Rounded", system-ui, sans-serif;
+    --f-mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+    /* shape */
+    --r-screen: 14px;
+    --r-tile: 18px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --page: #090b0f; --shell: #171a20; --shell-edge: #272c35; --bezel: #050608;
+      --ink: #eef2f8; --muted: #95a1b6; --sky-1: #0c1830; --sky-2: #1a2b4c;
+      --stripe: rgba(255, 255, 255, .035); --panel: rgba(16, 22, 34, .74); --panel-line: rgba(255, 255, 255, .09);
+      --panel-shade: rgba(0, 0, 0, .4); --cloud: rgba(170, 195, 255, .06);
+      --ok: #3ad08a; --bad: #ff6b60; --bar: #ffc23d;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --page: #090b0f; --shell: #171a20; --shell-edge: #272c35; --bezel: #050608;
+    --ink: #eef2f8; --muted: #95a1b6; --sky-1: #0c1830; --sky-2: #1a2b4c;
+    --stripe: rgba(255, 255, 255, .035); --panel: rgba(16, 22, 34, .74); --panel-line: rgba(255, 255, 255, .09);
+    --panel-shade: rgba(0, 0, 0, .4); --cloud: rgba(170, 195, 255, .06);
+    --ok: #3ad08a; --bad: #ff6b60; --bar: #ffc23d;
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    background: var(--page); color: var(--ink); font-family: var(--f-ui);
+    padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+    padding-block: 20px 28px;
+    display: flex; flex-direction: column; align-items: center; gap: 14px;
+    -webkit-font-smoothing: antialiased;
+  }
+  button { font: inherit; color: inherit; }
+  :focus-visible { outline: 3px solid var(--select); outline-offset: 2px; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  svg.i { width: 1.15em; height: 1.15em; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+
+  /* ---- the console ------------------------------------------------------------------------------------------- */
+  .console {
+    width: 100%; max-width: 560px;
+    display: grid; grid-template-areas: "top" "hinge" "bottom"; gap: 0;
+    background: linear-gradient(180deg, var(--shell), color-mix(in oklab, var(--shell) 92%, var(--shell-edge)));
+    border: 1px solid var(--shell-edge); border-radius: 30px;
+    padding: 14px 14px 18px;
+    box-shadow: 0 1px 0 rgba(255,255,255,.6) inset, 0 24px 60px -30px rgba(10, 20, 40, .45);
+  }
+  .screen {
+    position: relative; overflow: hidden; isolation: isolate;
+    border-radius: var(--r-screen);
+    border: 7px solid var(--bezel);
+    box-shadow: 0 0 0 1px var(--shell-edge);
+    color: var(--ink);
+  }
+
+  /* ---- top screen -------------------------------------------------------------------------------------------- */
+  .top {
+    grid-area: top; aspect-ratio: 5 / 3; max-width: 100%;
+    container-type: inline-size;
+    background: linear-gradient(180deg, var(--sky-1), var(--sky-2));
+  }
+  .top .dots {
+    position: absolute; inset: -40px; z-index: -2;
+    background-image: radial-gradient(var(--stripe) 1.6px, transparent 2px);
+    background-size: 18px 18px; animation: drift 30s linear infinite;
+  }
+  @keyframes drift { to { transform: translate(18px, 18px); } }
+  .top .glow {
+    position: absolute; inset: 0; z-index: -1;
+    background:
+      radial-gradient(60% 75% at 50% 46%, color-mix(in oklab, var(--c1) 55%, transparent), transparent 70%),
+      radial-gradient(40% 50% at 82% 20%, color-mix(in oklab, var(--c2) 45%, transparent), transparent 70%);
+    transition: --c1 .6s ease, --c2 .6s ease;
+  }
+  .cloud {
+    position: absolute; z-index: -1; height: 14cqw; aspect-ratio: 2.6;
+    background:
+      radial-gradient(circle at 30% 65%, var(--cloud) 34%, transparent 35%),
+      radial-gradient(circle at 55% 45%, var(--cloud) 40%, transparent 41%),
+      radial-gradient(circle at 75% 65%, var(--cloud) 30%, transparent 31%),
+      radial-gradient(ellipse 45% 30% at 52% 78%, var(--cloud) 98%, transparent);
+    filter: blur(1px);
+    animation: cloud 60s linear infinite;
+  }
+  .cloud.c1 { top: 12%; left: -30%; }
+  .cloud.c2 { top: 58%; left: -30%; height: 10cqw; animation-duration: 85s; animation-delay: -40s; opacity: .7; }
+  @keyframes cloud { to { transform: translateX(170cqw); } }
+
+  .status {
+    position: absolute; inset: 0 0 auto; display: flex; align-items: center; gap: 8px;
+    padding: 6px 10px; font-size: clamp(10px, 2.4cqw, 13px); font-weight: 700;
+    background: linear-gradient(180deg, var(--panel), transparent);
+  }
+  .chip {
+    display: inline-flex; align-items: center; gap: 5px; padding: 2px 8px; border-radius: 99px;
+    background: var(--panel); border: 1px solid var(--panel-line); white-space: nowrap;
+  }
+  .chip .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 0 2px color-mix(in oklab, var(--ok) 25%, transparent); }
+  .status .grow { flex: 1; }
+  .status time { font-variant-numeric: tabular-nums; white-space: nowrap; }
+  @container (max-width: 400px) { #counts { display: none; } }
+  .battery { width: 24px; height: 11px; border: 2px solid currentColor; border-radius: 3px; position: relative; padding: 1px; }
+  .battery::after { content: ""; position: absolute; right: -4px; top: 2px; width: 2px; height: 3px; background: currentColor; border-radius: 0 1px 1px 0; }
+  .battery i { display: block; height: 100%; width: 78%; background: var(--ok); border-radius: 1px; }
+
+  .stage {
+    position: absolute; inset: 9% 0 24%; display: grid; place-items: center;
+    perspective: 620px; perspective-origin: 50% 40%;
+  }
+  .float { display: grid; place-items: center; transform-style: preserve-3d; animation: bob 4.2s ease-in-out infinite; }
+  @keyframes bob { 50% { transform: translateY(-2.2cqw); } }
+  .logo3d {
+    display: grid; transform-style: preserve-3d; text-align: center;
+    transform: rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg));
+    font-family: var(--lf); font-size: var(--fs, 13cqw); line-height: .92; letter-spacing: .01em;
+    font-weight: var(--lw, 400);
+  }
+  .logo3d .layer { grid-area: 1 / 1; white-space: nowrap; transform: translateZ(calc(var(--i) * var(--depth, 1.1px) * -1)); }
+  .logo3d .layer.side { color: color-mix(in oklab, var(--ex), black calc(var(--i) * 3.5%)); }
+  .logo3d .layer.front {
+    background: linear-gradient(180deg, var(--f1) 35%, var(--f2)); -webkit-background-clip: text; background-clip: text;
+    color: transparent; -webkit-text-stroke: .04em var(--ex);
+    transform: translateZ(calc(var(--depth, 1.1px) * 2));
+  }
+  .logo3d .ribbon {
+    grid-area: 1 / 1; align-self: end; justify-self: center; translate: 0 70%;
+    transform: translateZ(calc(var(--depth, 1.1px) * 6));
+    font: 800 clamp(8px, 2.3cqw, 13px) / 1 var(--f-ui); letter-spacing: .14em; text-transform: uppercase;
+    background: var(--ex); color: #fff; padding: .45em .9em; border-radius: 99px; white-space: nowrap;
+    box-shadow: 0 4px 10px -4px rgba(0,0,0,.4);
+  }
+  .ground {
+    position: absolute; left: 50%; bottom: 4%; width: 46cqw; height: 4cqw; translate: -50% 0;
+    background: radial-gradient(closest-side, rgba(10, 20, 40, .28), transparent); filter: blur(2px);
+    animation: ground 4.2s ease-in-out infinite;
+  }
+  @keyframes ground { 50% { transform: scale(.82); opacity: .7; } }
+  .logo-enter { animation: enter .55s cubic-bezier(.2, 1.4, .4, 1); }
+  @keyframes enter { from { opacity: 0; transform: translateZ(-120px) scale(.8); } }
+
+  .caption {
+    position: absolute; inset: auto 0 0; display: flex; align-items: flex-end; gap: 12px;
+    padding: 0 12px 10px; font-size: clamp(10px, 2.5cqw, 14px);
+  }
+  .caption .txt { flex: 1; min-width: 0; display: grid; gap: 2px; }
+  .kind {
+    justify-self: start; font-size: .78em; font-weight: 800; letter-spacing: .1em; text-transform: uppercase;
+    padding: 2px 7px; border-radius: 6px; background: var(--ink); color: var(--sky-2);
+  }
+  .caption h1 { margin: 0; font-size: 1.35em; font-weight: 800; line-height: 1.2; text-wrap: balance; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .caption p { margin: 0; color: var(--muted); font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .hint { display: inline-flex; align-items: center; gap: 5px; font-weight: 800; white-space: nowrap; padding: 4px 9px 4px 4px; border-radius: 99px; background: var(--panel); border: 1px solid var(--panel-line); }
+  .btn-glyph {
+    display: inline-grid; place-items: center; width: 1.6em; height: 1.6em; border-radius: 50%;
+    font: 800 .8em/1 var(--f-ui); color: #fff; background: #e8504a; flex: none;
+  }
+  .btn-glyph.b { background: #f0b429; } .btn-glyph.y { background: #2fae63; } .btn-glyph.x { background: #3b74e0; }
+
+  /* build progress + launch overlays on the top screen */
+  .job {
+    position: absolute; left: 50%; bottom: 8%; width: min(86%, 420px); translate: -50% 0;
+    background: var(--panel); border: 1px solid var(--panel-line); border-radius: 14px;
+    -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+    padding: 10px 12px; display: grid; gap: 7px; font-size: clamp(10px, 2.4cqw, 13px);
+    box-shadow: 0 12px 30px -16px var(--panel-shade);
+  }
+  .job .row { display: flex; justify-content: space-between; gap: 8px; font-weight: 800; }
+  .job .row span:last-child { font-variant-numeric: tabular-nums; }
+  .job .bar { height: 6px; border-radius: 3px; background: color-mix(in oklab, var(--ink) 12%, transparent); overflow: hidden; }
+  .job .bar i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--c1), var(--select)); border-radius: 3px; }
+  .job code { font-family: var(--f-mono); font-size: .9em; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .top.busy .caption { opacity: 0; }
+
+  .launch {
+    position: absolute; inset: 0; display: grid; place-content: center; gap: 8px; text-align: center; padding: 16px;
+    background: radial-gradient(circle at 50% 45%, color-mix(in oklab, var(--c1) 70%, white), var(--c2));
+    color: #1b2130; animation: flash .35s ease-out; font-size: clamp(11px, 2.6cqw, 15px); font-weight: 800;
+  }
+  .launch code { font: 500 .85em/1.4 var(--f-mono); opacity: .75; overflow-wrap: anywhere; }
+  @keyframes flash { from { opacity: 0; transform: scale(1.08); } }
+  .top.launching .stage { transition: transform .5s ease-in, opacity .5s; transform: scale(1.6); opacity: 0; }
+
+  /* ---- hinge: 3D depth slider, theme, sound ----------------------------------------------------------------- */
+  .hinge {
+    grid-area: hinge; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; padding: 12px 6px;
+    font-size: 12px; font-weight: 800; color: var(--muted);
+  }
+  .hinge label { display: flex; align-items: center; gap: 8px; flex: 1 1 150px; min-width: 0; }
+  .hinge input[type=range] { flex: 1; min-width: 60px; max-width: 200px; accent-color: var(--select); }
+  .depth-val { font-variant-numeric: tabular-nums; min-width: 2.4em; color: var(--ink); }
+  .pill {
+    display: inline-flex; align-items: center; gap: 6px; padding: 6px 11px; border-radius: 99px; cursor: pointer;
+    border: 1px solid var(--shell-edge); background: var(--shell); font-size: 12px; font-weight: 800; color: var(--ink);
+  }
+  .pill[aria-pressed="true"] { background: var(--ink); color: var(--shell); border-color: var(--ink); }
+
+  /* ---- bottom screen ----------------------------------------------------------------------------------------- */
+  .bottom {
+    grid-area: bottom; justify-self: center; width: 86%; aspect-ratio: 4 / 3.3;
+    display: grid; grid-template-rows: auto 1fr auto;
+    background:
+      repeating-linear-gradient(-45deg, var(--stripe) 0 12px, transparent 12px 24px),
+      linear-gradient(180deg, var(--sky-2), var(--sky-1));
+  }
+  .sysrow { display: flex; gap: 6px; padding: 8px 8px 0; }
+  .sys {
+    flex: 1; display: grid; place-items: center; height: 34px; border-radius: 10px; cursor: pointer;
+    background: var(--panel); border: 1px solid var(--panel-line); color: var(--ink);
+    transition: transform .12s;
+  }
+  .sys:active { transform: scale(.94); }
+  .sys svg.i { width: 18px; height: 18px; }
+
+  .shelf {
+    display: grid; grid-auto-flow: column; grid-template-rows: repeat(2, var(--tile));
+    grid-auto-columns: var(--tile); gap: 12px; align-content: center;
+    padding: 10px 16px; overflow-x: auto; scroll-snap-type: x proximity; scrollbar-width: none;
+    --tile: clamp(64px, 19vw, 92px);
+  }
+  .shelf::-webkit-scrollbar { display: none; }
+  .tile {
+    position: relative; border: 0; padding: 0; cursor: pointer; background: none; scroll-snap-align: center;
+    border-radius: var(--r-tile); transition: transform .18s cubic-bezier(.3, 1.5, .5, 1);
+  }
+  .tile .art {
+    position: absolute; inset: 0; border-radius: var(--r-tile); overflow: hidden;
+    background: linear-gradient(145deg, var(--t1), var(--t2));
+    box-shadow: 0 1px 0 rgba(255,255,255,.5) inset, 0 6px 14px -8px rgba(0, 0, 0, .5);
+    display: grid; place-items: center;
+  }
+  .tile .glyph {
+    font-family: var(--lf); font-weight: var(--lw, 400); font-size: calc(var(--tile) * .5); line-height: 1; color: var(--tf);
+    text-shadow: 0 1px 0 var(--tx), 0 2px 0 var(--tx), 0 3px 0 var(--tx), 0 6px 10px rgba(0,0,0,.25);
+    transform: rotate(-6deg);
+  }
+  .tile .art::after {
+    content: ""; position: absolute; inset: 0;
+    background: linear-gradient(160deg, rgba(255,255,255,.45), transparent 42%);
+  }
+  .tile.add .art {
+    background: var(--panel); border: 2px dashed color-mix(in oklab, var(--ink) 30%, transparent); box-shadow: none; color: var(--muted);
+  }
+  .tile.add .art svg.i { width: 40%; height: 40%; }
+  .tile[aria-selected="true"] { transform: scale(1.08); z-index: 1; }
+  .tile[aria-selected="true"]::after {
+    content: ""; position: absolute; inset: -6px; border-radius: calc(var(--r-tile) + 6px);
+    border: 3px solid var(--select); animation: pulse 1.4s ease-in-out infinite; pointer-events: none;
+  }
+  @keyframes pulse { 50% { inset: -9px; border-color: color-mix(in oklab, var(--select) 55%, transparent); } }
+  .badge {
+    position: absolute; right: -4px; bottom: -4px; min-width: 24px; height: 24px; padding: 0 6px; border-radius: 99px;
+    display: inline-flex; align-items: center; justify-content: center; gap: 3px;
+    font-size: 10px; font-weight: 800; color: #fff; border: 2px solid var(--sky-2);
+  }
+  .badge svg.i { width: 13px; height: 13px; stroke-width: 2.6; }
+  .badge.build { background: var(--select); color: var(--select-ink); }
+  .badge.warn { background: var(--bad); }
+  .badge.port { background: #1b2130; }
+  .ring { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); }
+  .ring circle { fill: none; stroke-width: 6; }
+  .ring .trk { stroke: rgba(0, 0, 0, .35); }
+  .ring .val { stroke: var(--select); stroke-linecap: round; transition: stroke-dashoffset .2s; }
+  .tile.building .art { filter: saturate(.5) brightness(.85); }
+
+  .actionbar {
+    display: grid; grid-template-columns: 1fr 1.6fr; gap: 0;
+    background: var(--bar); color: var(--bar-ink); font-weight: 800;
+    box-shadow: 0 -1px 0 rgba(0,0,0,.08);
+  }
+  .actionbar button {
+    display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 8px 10px;
+    border: 0; background: none; cursor: pointer; font-size: 15px; font-weight: 800; color: inherit;
+  }
+  .actionbar button + button { border-left: 2px solid rgba(59, 41, 0, .15); background: rgba(255, 255, 255, .28); }
+  .actionbar button:disabled { opacity: .45; cursor: default; }
+  .actionbar button:not(:disabled):active { background: rgba(255, 255, 255, .5); }
+
+  .sheet {
+    position: absolute; inset: 0; z-index: 3; display: grid; grid-template-rows: auto 1fr;
+    background: color-mix(in oklab, var(--sky-2) 88%, transparent);
+    -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px);
+    animation: up .28s cubic-bezier(.2, 1, .3, 1);
+  }
+  @keyframes up { from { transform: translateY(30%); opacity: 0; } }
+  .sheet header { display: flex; align-items: center; gap: 8px; padding: 10px 10px 6px 14px; }
+  .sheet header h2 { flex: 1; margin: 0; font-size: 15px; font-weight: 800; }
+  .sheet .body { overflow-y: auto; padding: 0 12px 14px; display: grid; gap: 8px; align-content: start; font-size: 13px; }
+  .close { border: 0; background: var(--panel); border-radius: 99px; padding: 4px 10px 4px 4px; display: inline-flex; align-items: center; gap: 5px; font-weight: 800; font-size: 12px; cursor: pointer; }
+  .check {
+    display: grid; grid-template-columns: 32px 1fr auto; align-items: center; gap: 10px;
+    background: var(--panel); border: 1px solid var(--panel-line); border-radius: 12px; padding: 8px 10px;
+  }
+  .check .ic { width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; background: color-mix(in oklab, var(--c1) 30%, transparent); }
+  .check b { display: block; font-size: 13px; }
+  .check span { display: block; color: var(--muted); font-size: 12px; font-weight: 700; overflow-wrap: anywhere; }
+  .check.bad span { color: var(--bad); }
+  .check .st { color: var(--ok); } .check.bad .st { color: var(--bad); }
+  .note { margin: 2px 2px 0; color: var(--muted); font-size: 12px; font-weight: 700; line-height: 1.5; }
+  .note code, .kv code { font-family: var(--f-mono); font-size: 11px; }
+  .kv { display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; background: var(--panel); border: 1px solid var(--panel-line); border-radius: 12px; padding: 10px 12px; }
+  .kv dt { color: var(--muted); font-weight: 700; font-size: 12px; }
+  .kv dd { margin: 0; font-weight: 800; font-size: 12px; min-width: 0; overflow-wrap: anywhere; }
+  .toggle { display: flex; align-items: center; justify-content: space-between; gap: 10px; background: var(--panel); border: 1px solid var(--panel-line); border-radius: 12px; padding: 8px 12px; font-weight: 800; }
+  .toggle input { width: 20px; height: 20px; accent-color: var(--ok); }
+
+  .toast {
+    position: absolute; left: 50%; top: 14%; translate: -50% 0; z-index: 4;
+    background: var(--ink); color: var(--sky-2); padding: 6px 14px; border-radius: 99px; font-size: clamp(10px, 2.4cqw, 13px); font-weight: 800;
+    animation: toast 2.8s ease forwards; white-space: nowrap;
+  }
+  @keyframes toast { 0% { opacity: 0; translate: -50% -10px; } 10%, 85% { opacity: 1; translate: -50% 0; } 100% { opacity: 0; } }
+
+  .legend { max-width: 560px; width: 100%; display: flex; flex-wrap: wrap; gap: 8px 14px; justify-content: center; color: var(--muted); font-size: 12px; font-weight: 700; }
+  .legend span { display: inline-flex; align-items: center; gap: 5px; }
+  .legend kbd { font: 500 11px var(--f-mono); padding: 1px 5px; border-radius: 5px; border: 1px solid var(--shell-edge); background: var(--shell); color: var(--ink); }
+
+  /* wide landscape: screens side by side, like a home screen on a TV */
+  @media (min-width: 1000px) and (orientation: landscape) {
+    body { justify-content: center; }
+    .console { max-width: 1180px; grid-template-columns: 1.45fr 1fr; grid-template-areas: "top bottom" "hinge bottom"; column-gap: 18px; padding: 18px; align-items: start; }
+    .bottom { width: 100%; height: 100%; aspect-ratio: auto; min-height: 420px; }
+    .shelf { --tile: clamp(70px, 6.4vw, 96px); }
+    .legend { max-width: 1180px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .float, .ground, .top .dots, .cloud, .tile[aria-selected="true"]::after { animation: none; }
+    .logo-enter, .sheet, .launch { animation-duration: .01s; }
+  }
+</style>
+
+<main class="console" id="console">
+  <section class="screen top" id="top" aria-label="Top screen" style="--c1:#ff8db3;--c2:#ffd66b">
+    <div class="dots"></div>
+    <div class="glow"></div>
+    <div class="cloud c1"></div><div class="cloud c2"></div>
+    <div class="status">
+      <span class="chip"><span class="dot" id="jitDot"></span><span id="lcState">LiveContainer · JIT</span></span>
+      <span class="chip" id="counts">1 port · 3 apps</span>
+      <span class="grow"></span>
+      <time id="clock">10:03</time>
+      <span class="battery" aria-label="Battery 78%"><i></i></span>
+    </div>
+    <div class="stage" id="stage">
+      <div class="float"><div class="logo3d" id="logo"></div></div>
+      <div class="ground"></div>
+    </div>
+    <div class="caption">
+      <div class="txt">
+        <span class="kind" id="kind">Port</span>
+        <h1 id="name">Tomodachi Life: Living the Dream</h1>
+        <p id="sub">Ready to build from your dump</p>
+      </div>
+      <span class="hint" id="hint"><span class="btn-glyph">A</span><span id="hintText">Build</span></span>
+    </div>
+  </section>
+
+  <div class="hinge">
+    <label for="depth"><span>3D</span><input id="depth" type="range" min="0" max="10" value="6"><span class="depth-val" id="depthVal">6</span></label>
+    <button class="pill" id="theme" type="button" aria-label="Switch theme"><svg class="i" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg><span id="themeTxt">Night</span></button>
+    <button class="pill" id="sound" type="button" aria-pressed="false"><svg class="i" viewBox="0 0 24 24"><path d="M4 9.5h4l5-4v13l-5-4H4z"/><path d="M16.5 9a4 4 0 0 1 0 6"/></svg>Sound</button>
+  </div>
+
+  <section class="screen bottom" id="bottom" aria-label="Bottom screen">
+    <nav class="sysrow" aria-label="System">
+      <button class="sys" data-sys="packs" type="button" aria-label="Packager folder"><svg class="i" viewBox="0 0 24 24"><path d="M3 6.5h6l2 2h10v10.5H3z"/></svg></button>
+      <button class="sys" data-sys="sources" type="button" aria-label="Sources"><svg class="i" viewBox="0 0 24 24"><path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/></svg></button>
+      <button class="sys" data-sys="tweaks" type="button" aria-label="Tweaks"><svg class="i" viewBox="0 0 24 24"><path d="M5 4v16M12 4v16M19 4v16"/><circle cx="5" cy="9" r="2" fill="currentColor"/><circle cx="12" cy="15" r="2" fill="currentColor"/><circle cx="19" cy="7" r="2" fill="currentColor"/></svg></button>
+      <button class="sys" data-sys="settings" type="button" aria-label="Settings"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/></svg></button>
+    </nav>
+    <div class="shelf" id="shelf" role="listbox" aria-label="Games and apps" tabindex="-1"></div>
+    <div class="actionbar">
+      <button id="details" type="button"><span class="btn-glyph y">Y</span>Details</button>
+      <button id="go" type="button"><span class="btn-glyph">A</span><span id="goText">Build</span></button>
+    </div>
+  </section>
+</main>
+
+<div class="legend">
+  <span><kbd>← →</kbd><kbd>↑ ↓</kbd> move</span>
+  <span><kbd>Enter</kbd> A</span>
+  <span><kbd>Y</kbd> details</span>
+  <span><kbd>Esc</kbd> B back</span>
+  <span>Prototype: only Tomodachi is a real port; the other titles are samples.</span>
+</div>
+
+<script>
+(() => {
+  const $ = (s) => document.querySelector(s);
+  const icon = {
+    play: '<svg class="i" viewBox="0 0 24 24"><path d="M8 5.5v13l11-6.5z" fill="currentColor" stroke="none"/></svg>',
+    build: '<svg class="i" viewBox="0 0 24 24"><path d="M12.5 5.5l3-3 6 6-3 3z"/><path d="M14.5 9.5L4 20"/></svg>',
+    warn: '<svg class="i" viewBox="0 0 24 24"><path d="M12 4l9 16H3z"/><path d="M12 10v4.5M12 17.5v.01"/></svg>',
+    check: '<svg class="i" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
+    plus: '<svg class="i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
+    box: '<svg class="i" viewBox="0 0 24 24"><path d="M3 7.5l9-4 9 4v9l-9 4-9-4z"/><path d="M3 7.5l9 4 9-4M12 11.5v9"/></svg>',
+    pad: '<svg class="i" viewBox="0 0 24 24"><path d="M6.5 8h11a4 4 0 0 1 4 4v1.5a2.8 2.8 0 0 1-5 1.7L15 13.5H9l-1.5 1.7a2.8 2.8 0 0 1-5-1.7V12a4 4 0 0 1 4-4z"/><path d="M7 10.5v3M5.5 12h3"/></svg>',
+    key: '<svg class="i" viewBox="0 0 24 24"><circle cx="8" cy="15" r="4"/><path d="M11 12l9-9M16 7l3 3"/></svg>',
+    back: '<span class="btn-glyph b">B</span>',
+  };
+
+  // Sample library. "port" = a Packager port pack in the folder; "app" = an app already installed in LiveContainer.
+  const APPS = [
+    { id: 'tomodachi', kind: 'port', state: 'ready', name: 'Tomodachi', logo: ['Tomodachi'], ribbon: 'Living the Dream',
+      full: 'Tomodachi Life: Living the Dream', lf: '"Lilita One"', glyph: 'T',
+      c1: '#ff8db3', c2: '#ffd66b', ex: '#c2457a', f1: '#ffffff', f2: '#ffe3ee', t1: '#ffa9c8', t2: '#ffcf6e', tf: '#fff', tx: '#c2457a',
+      pack: 'tomodachi.nxport', portVer: '0.1.0', titleId: '010051F0207B2000', gameVer: '1.0.0', ipa: 'Tomodachi-0.1.0.ipa',
+      bundle: 'io.github.tenma.tomodachi', dump: 'Tomodachi Life [010051F0207B2000][v0].xci', jit: false,
+      after: 'Open the app and choose the same .xci (and prod.keys) once.' },
+    { id: 'garden', kind: 'port', state: 'nodump', sample: true, name: 'Hollow Garden', logo: ['Hollow', 'Garden'], ribbon: 'Sample port',
+      full: 'Hollow Garden (sample port)', lf: '"Baloo 2"', lw: 800, glyph: 'H',
+      c1: '#6fd3a8', c2: '#2c7da0', ex: '#1e5c55', f1: '#f4ffe9', f2: '#b7efc5', t1: '#7fe0b4', t2: '#2c7da0', tf: '#f4ffe9', tx: '#1e5c55',
+      pack: 'hollow-garden.nxport', portVer: '0.3.0', titleId: '0100000000000000', gameVer: '1.2.0', ipa: 'HollowGarden-0.3.0.ipa',
+      bundle: 'com.example.hollowgarden' },
+    { id: 'starfall', kind: 'app', state: 'installed', sample: true, name: 'Starfall Arcade', logo: ['Starfall', 'Arcade'],
+      full: 'Starfall Arcade', lf: '"Bungee"', glyph: 'S',
+      c1: '#7b6cff', c2: '#ff5fa2', ex: '#3a2c99', f1: '#fff6b0', f2: '#ffb547', t1: '#8a7bff', t2: '#ff6aa8', tf: '#fff6b0', tx: '#3a2c99',
+      bundle: 'com.example.starfall', container: 'Starfall', jit: true, size: '212 MB', played: 'Yesterday' },
+    { id: 'kiln', kind: 'app', state: 'installed', sample: true, name: 'Kiln', logo: ['Kiln'], ribbon: 'Pottery sim',
+      full: 'Kiln', lf: '"Fredoka"', lw: 700, glyph: 'K',
+      c1: '#ff8a4c', c2: '#b4452c', ex: '#6b2516', f1: '#fff3e6', f2: '#ffc59a', t1: '#ff9b62', t2: '#a83e28', tf: '#fff3e6', tx: '#6b2516',
+      bundle: 'com.example.kiln', container: 'Kiln', jit: false, size: '96 MB', played: '3 days ago' },
+    { id: 'lumen', kind: 'app', state: 'installed', sample: true, name: 'Lumen Notes', logo: ['Lumen'], ribbon: 'Notes',
+      full: 'Lumen Notes', lf: '"M PLUS Rounded 1c"', lw: 800, glyph: 'L',
+      c1: '#5cc8ff', c2: '#2f6bff', ex: '#173a8a', f1: '#ffffff', f2: '#d6eeff', t1: '#6fd0ff', t2: '#2f6bff', tf: '#fff', tx: '#173a8a',
+      bundle: 'com.example.lumen', container: 'Lumen', jit: false, size: '18 MB', played: 'Last week' },
+    { id: 'add', kind: 'add', name: 'Add', full: 'Install an IPA', logo: ['+'], lf: '"M PLUS Rounded 1c"', lw: 800,
+      c1: '#cfd8e6', c2: '#9fb3cf', ex: '#5d677a', f1: '#ffffff', f2: '#e6ebf3' },
+  ];
+  let sel = 0, depth = 6, sound = false, busy = false, sheetOpen = false;
+  const top = $('#top'), shelf = $('#shelf'), logo = $('#logo');
+
+  // ---- sound: short 3DS-like blips (only after a tap, and only when switched on) --------------------------------
+  let ac = null;
+  function blip(f = 880, d = .05, type = 'sine', vol = .06) {
+    if (!sound) return;
+    try {
+      ac = ac || new (window.AudioContext || window.webkitAudioContext)();
+      const o = ac.createOscillator(), g = ac.createGain();
+      o.type = type; o.frequency.value = f; g.gain.value = vol;
+      g.gain.exponentialRampToValueAtTime(.0001, ac.currentTime + d);
+      o.connect(g).connect(ac.destination); o.start(); o.stop(ac.currentTime + d);
+    } catch (e) {}
+  }
+
+  // ---- shelf ------------------------------------------------------------------------------------------------------
+  function badge(a) {
+    if (a.kind === 'port' && a.state === 'ready') return `<span class="badge build">${icon.build}</span>`;
+    if (a.kind === 'port' && a.state === 'nodump') return `<span class="badge warn">${icon.warn}</span>`;
+    if (a.kind === 'port' && a.state === 'installed') return '<span class="badge port">PORT</span>';
+    return '';
+  }
+  function stateWords(a) {
+    return { ready: 'port, ready to build', nodump: 'port, needs your game dump', building: 'port, building',
+             installed: a.kind === 'port' ? 'port, installed' : 'installed app' }[a.state] || 'install an IPA';
+  }
+  function tile(a, i) {
+    const vars = `--t1:${a.t1};--t2:${a.t2};--tf:${a.tf};--tx:${a.tx};--lf:${a.lf};--lw:${a.lw || 400}`;
+    const art = a.kind === 'add' ? icon.plus : `<span class="glyph">${a.glyph}</span>`;
+    const ring = a.state === 'building'
+      ? '<svg class="ring" viewBox="0 0 100 100"><circle class="trk" cx="50" cy="50" r="40"/><circle class="val" cx="50" cy="50" r="40" stroke-dasharray="251.3" stroke-dashoffset="251.3"/></svg>' : '';
+    return `<button class="tile ${a.kind === 'add' ? 'add' : ''} ${a.state === 'building' ? 'building' : ''}" role="option" type="button"
+      id="t-${a.id}" data-i="${i}" aria-selected="${i === sel}" tabindex="${i === sel ? 0 : -1}" style="${vars}">
+      <span class="art">${art}</span>${ring}${badge(a)}<span class="sr">${a.full}, ${stateWords(a)}</span></button>`;
+  }
+  function renderShelf() {
+    const hadFocus = shelf.contains(document.activeElement);
+    shelf.innerHTML = APPS.map(tile).join('');
+    if (hadFocus) shelf.children[sel].focus({ preventScroll: true });
+    const ports = APPS.filter((a) => a.kind === 'port').length, apps = APPS.filter((a) => a.kind === 'app' || (a.kind === 'port' && a.state === 'installed')).length;
+    $('#counts').textContent = `${ports} port${ports > 1 ? 's' : ''} · ${apps} installed`;
+  }
+
+  // ---- top screen -------------------------------------------------------------------------------------------------
+  function renderLogo(a) {
+    const lines = a.logo, longest = Math.max(...lines.map((l) => l.length));
+    const fs = Math.min(17, 88 / (longest * .62 + .6) / Math.max(1, lines.length * .8));
+    const text = lines.join('<br>');
+    let html = '';
+    for (let i = 14; i >= 1; i--) html += `<span class="layer side" aria-hidden="true" style="--i:${i}">${text}</span>`;
+    html += `<span class="layer front" aria-hidden="true">${text}</span>`;
+    if (a.ribbon) html += `<span class="ribbon" aria-hidden="true">${a.ribbon}</span>`;
+    logo.innerHTML = html;
+    logo.style.cssText = `--lf:${a.lf};--lw:${a.lw || 400};--fs:${fs}cqw;--ex:${a.ex};--f1:${a.f1};--f2:${a.f2};--depth:${depth * .32}px`;
+    logo.classList.remove('logo-enter'); void logo.offsetWidth; logo.classList.add('logo-enter');
+  }
+  const actionFor = (a) => a.kind === 'add' ? 'Install IPA' : a.state === 'ready' ? 'Build' : a.state === 'nodump' ? 'Add dump'
+                         : a.state === 'building' ? 'Building…' : 'Play';
+  function renderTop() {
+    const a = APPS[sel];
+    top.style.setProperty('--c1', a.c1); top.style.setProperty('--c2', a.c2);
+    $('#kind').textContent = a.kind === 'port' ? (a.state === 'installed' ? 'Port · built here' : 'Port pack') : a.kind === 'app' ? 'LiveContainer app' : 'Install';
+    $('#name').textContent = a.full;
+    $('#sub').textContent = {
+      ready: `Dump checked · ${a.titleId} v${a.gameVer}`,
+      nodump: `Needs your own dump of version ${a.gameVer}`,
+      building: 'Building…',
+      installed: a.kind === 'port' ? `Port ${a.portVer} · runs in LiveContainer` : `Played ${a.played} · ${a.size}${a.jit ? ' · JIT' : ''}`,
+    }[a.state] || 'From Files, a source, or a URL';
+    $('#hintText').textContent = $('#goText').textContent = actionFor(a);
+    $('#go').disabled = a.state === 'building';
+    $('#details').disabled = a.kind === 'add';
+    $('#jitDot').style.background = a.jit ? '' : 'var(--muted)';
+    $('#lcState').textContent = a.jit ? 'LiveContainer · JIT' : 'LiveContainer';
+  }
+  function select(i, { scroll = true, quiet = false } = {}) {
+    i = Math.max(0, Math.min(APPS.length - 1, i));
+    const changed = i !== sel;
+    sel = i;
+    [...shelf.children].forEach((t, k) => { t.setAttribute('aria-selected', k === sel); t.tabIndex = k === sel ? 0 : -1; });
+    if (scroll) shelf.children[sel].scrollIntoView({ block: 'nearest', inline: 'center', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+    if (changed || !logo.childElementCount) { renderLogo(APPS[sel]); if (!quiet) blip(1046, .04); }
+    renderTop();
+  }
+
+  // ---- parallax: the logo turns toward the pointer; idles in a slow sway ----------------------------------------
+  let tx = 0, ty = 0, cx = 0, cy = 0, lastMove = -1e9;
+  const still = matchMedia('(prefers-reduced-motion: reduce)');
+  addEventListener('pointermove', (e) => {
+    const r = top.getBoundingClientRect();
+    tx = Math.max(-1, Math.min(1, (e.clientX - (r.left + r.width / 2)) / (r.width / 1.2)));
+    ty = Math.max(-1, Math.min(1, (e.clientY - (r.top + r.height / 2)) / (r.height / 1.2)));
+    lastMove = performance.now();
+  }, { passive: true });
+  function frame(t) {
+    let gx = tx, gy = ty;
+    if (t - lastMove > 2500) { gx = still.matches ? 0 : Math.sin(t / 2100) * .55; gy = still.matches ? 0 : Math.sin(t / 2900) * .3; }
+    cx += (gx - cx) * .08; cy += (gy - cy) * .08;
+    const k = depth / 6;
+    logo.style.setProperty('--ry', `${(cx * 24 * k).toFixed(2)}deg`);
+    logo.style.setProperty('--rx', `${(-cy * 14 * k).toFixed(2)}deg`);
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+
+  // ---- toasts, sheets ---------------------------------------------------------------------------------------------
+  function toast(msg) {
+    const t = document.createElement('div');
+    t.className = 'toast'; t.textContent = msg; t.setAttribute('role', 'status');
+    top.appendChild(t); setTimeout(() => t.remove(), 2900);
+  }
+  function openSheet(title, body) {
+    closeSheet(true);
+    const s = document.createElement('div');
+    s.className = 'sheet'; s.id = 'sheet'; s.setAttribute('role', 'dialog'); s.setAttribute('aria-label', title);
+    s.innerHTML = `<header><h2>${title}</h2><button class="close" type="button">${icon.back}Back</button></header><div class="body">${body}</div>`;
+    s.querySelector('.close').onclick = () => closeSheet();
+    $('#bottom').appendChild(s); sheetOpen = true;
+    s.querySelector('.close').focus();
+    blip(660, .06);
+  }
+  function closeSheet(silent) {
+    const s = $('#sheet'); if (!s) return;
+    s.remove(); sheetOpen = false;
+    if (!silent) { blip(440, .06); shelf.children[sel].focus({ preventScroll: true }); }
+  }
+  const check = (ic, title, detail, ok) => `<div class="check ${ok === false ? 'bad' : ''}"><span class="ic">${ic}</span>
+    <div><b>${title}</b><span>${detail}</span></div><span class="st">${ok === true ? icon.check : ok === false ? icon.warn : ''}</span></div>`;
+
+  function details(a) {
+    if (a.kind === 'port') {
+      const dumpOk = a.state !== 'nodump';
+      openSheet(a.full, `
+        ${check(icon.box, 'Port pack', `${a.pack} · ${a.name} ${a.portVer} · needs ${a.titleId} v${a.gameVer}`, true)}
+        ${check(icon.pad, 'Game dump', dumpOk ? `${a.dump || 'game.xci'} · ${a.titleId} · ${a.gameVer}` : `No dump of version ${a.gameVer} in the folder yet. Put your own .xci there.`, dumpOk)}
+        ${check(icon.key, 'prod.keys', 'prod.keys · from your own Switch', true)}
+        ${a.state === 'installed' ? `<dl class="kv"><dt>Installed</dt><dd>Applications/<code>${a.bundle}.app</code></dd><dt>Data</dt><dd>its own LiveContainer container</dd></dl>` : ''}
+        <p class="note">Files go in <b>Files › Homeport › Packs</b>. Homeport looks again whenever you come back to it.${a.after ? `<br>After install: ${a.after}` : ''}${a.sample ? '<br>This entry is a sample.' : ''}</p>`);
+    } else {
+      openSheet(a.full, `
+        <dl class="kv"><dt>Bundle</dt><dd><code>${a.bundle}</code></dd><dt>Container</dt><dd>${a.container}</dd><dt>Size</dt><dd>${a.size}</dd><dt>Last played</dt><dd>${a.played}</dd></dl>
+        <label class="toggle" for="jitT">Launch with JIT <input id="jitT" type="checkbox" ${a.jit ? 'checked' : ''}></label>
+        <label class="toggle" for="mtT">Open in a window (multitask) <input id="mtT" type="checkbox"></label>
+        <p class="note">Sample app. These are LiveContainer's per-app settings, shown in Homeport's sheet.</p>`);
+      $('#jitT').onchange = (e) => { a.jit = e.target.checked; renderTop(); };
+    }
+  }
+  const SYS = {
+    packs: ['Packager folder', () => `
+      <p class="note">Put port packs, your dumps and prod.keys here with the Files app. Built apps install straight into LiveContainer, no IPA in between.</p>
+      <dl class="kv"><dt>Folder</dt><dd>Files › Homeport › Packs</dd>
+      ${APPS.filter((a) => a.kind === 'port').map((a) => `<dt>${a.name}</dt><dd><code>${a.pack}</code></dd>`).join('')}
+      <dt>Dump</dt><dd><code>Tomodachi Life [010051F0207B2000][v0].xci</code></dd><dt>Keys</dt><dd><code>prod.keys</code></dd></dl>`],
+    sources: ['Sources', () => `<p class="note">AltStore-format sources, from LiveContainer. Port packs could be listed in a source too; the dump never is.</p>
+      <dl class="kv"><dt>Sources</dt><dd>2 added (sample)</dd><dt>Updates</dt><dd>None</dd></dl>`],
+    tweaks: ['Tweaks', () => `<p class="note">LiveContainer's tweak folders, injected into the apps you choose. Ports don't need any.</p>`],
+    settings: ['Settings', () => `
+      <label class="toggle" for="setJit">JIT when available <input id="setJit" type="checkbox" checked></label>
+      <label class="toggle" for="setMt">Open apps in windows by default <input id="setMt" type="checkbox"></label>
+      <label class="toggle" for="setKeep">Keep the IPA after a build <input id="setKeep" type="checkbox"></label>
+      <p class="note">Certificate, app groups and SideStore settings stay as they are in LiveContainer.</p>`],
+  };
+
+  // ---- actions: build (Packager core), play (LiveContainer launch) -----------------------------------------------
+  const STEPS = (a) => [
+    [`Reading ${a.pack}`, .08],
+    [`Checking the dump · ${a.titleId} v0`, .12],
+    ['Decompressing main from ExeFS', .26],
+    ['Checking input_sha256', .08],
+    ['Applying patches/main.nxwp', .14],
+    ['Checking output_sha256', .07],
+    ['Filling slots __NX1T, __NX1D, __NX2T…', .12],
+    [`Installing into Applications/${a.bundle}.app`, .08],
+    ["Signing with LiveContainer's certificate", .05],
+  ];
+  function build(a) {
+    if (busy) return;
+    busy = true; a.state = 'building'; renderShelf(); renderTop(); top.classList.add('busy');
+    const job = document.createElement('div');
+    job.className = 'job'; job.setAttribute('role', 'status');
+    job.innerHTML = '<div class="row"><span id="jobStep"></span><span id="jobPct">0%</span></div><div class="bar"><i id="jobBar"></i></div><code id="jobFile"></code>';
+    top.appendChild(job);
+    const steps = STEPS(a), total = 6200, t0 = performance.now();
+    $('#jobFile').textContent = `${a.pack} + ${a.dump} + prod.keys`;
+    blip(523, .08, 'triangle');
+    (function tick(now) {
+      const f = Math.min(1, (now - t0) / total);
+      let acc = 0, step = steps[steps.length - 1][0];
+      for (const [s, w] of steps) { acc += w; if (f <= acc) { step = s; break; } }
+      $('#jobStep').textContent = step + (f < 1 ? '…' : '');
+      $('#jobPct').textContent = `${Math.round(f * 100)}%`;
+      $('#jobBar').style.width = `${f * 100}%`;
+      const ring = document.querySelector(`#t-${a.id} .val`);
+      if (ring) ring.style.strokeDashoffset = 251.3 * (1 - f);
+      if (f < 1) return requestAnimationFrame(tick);
+      setTimeout(() => {
+        job.remove(); top.classList.remove('busy');
+        a.state = 'installed'; busy = false; renderShelf(); renderTop(); renderLogo(a);
+        toast(`${a.name} is installed. Press A to play.`);
+        blip(784, .09, 'triangle'); setTimeout(() => blip(1046, .14, 'triangle'), 110);
+      }, 350);
+    })(t0);
+  }
+  function play(a) {
+    if (busy) return;
+    busy = true; top.classList.add('launching'); blip(1318, .12, 'triangle');
+    const l = document.createElement('div');
+    l.className = 'launch'; l.setAttribute('role', 'status');
+    setTimeout(() => {
+      l.innerHTML = `<span>Opening ${a.name}</span><code>launchAppWithBundleId("${a.bundle}.app", container: "${a.container || a.name}", jit: ${!!a.jit})</code>`;
+      top.appendChild(l);
+    }, 420);
+    setTimeout(() => {
+      l.remove(); top.classList.remove('launching'); busy = false; renderLogo(a);
+      toast('Back to Homeport');
+    }, 2600);
+  }
+  function primary() {
+    const a = APPS[sel];
+    if (sheetOpen) closeSheet(true);
+    if (a.kind === 'add') return openSheet('Install an IPA', `
+      <p class="note">Pick an .ipa in Files, paste a URL, or add a source. It installs into LiveContainer like any app; built ports skip this step.</p>
+      <dl class="kv"><dt>From Files</dt><dd>Choose…</dd><dt>From a URL</dt><dd><code>livecontainer://install?url=…</code></dd></dl>`);
+    if (a.state === 'ready') return build(a);
+    if (a.state === 'nodump') return details(a);
+    if (a.state === 'installed') return play(a);
+  }
+
+  // ---- input ------------------------------------------------------------------------------------------------------
+  shelf.addEventListener('click', (e) => {
+    const t = e.target.closest('.tile'); if (!t) return;
+    const i = +t.dataset.i;
+    if (i === sel) primary(); else select(i);
+  });
+  $('#go').onclick = primary;
+  $('#details').onclick = () => { const a = APPS[sel]; if (a.kind !== 'add') details(a); };
+  document.querySelectorAll('[data-sys]').forEach((b) => b.onclick = () => { const [t, f] = SYS[b.dataset.sys]; openSheet(t, f()); });
+  addEventListener('keydown', (e) => {
+    if (e.target.matches('input, textarea')) return;
+    const k = e.key;
+    if (k === 'Escape' || k === 'b' || k === 'B') { if (sheetOpen) { e.preventDefault(); closeSheet(); } return; }
+    if (sheetOpen) return;
+    if (k === 'ArrowRight') { e.preventDefault(); select(sel + 2); }
+    else if (k === 'ArrowLeft') { e.preventDefault(); select(sel - 2); }
+    else if (k === 'ArrowDown') { e.preventDefault(); select(sel % 2 ? sel : sel + 1); }
+    else if (k === 'ArrowUp') { e.preventDefault(); select(sel % 2 ? sel - 1 : sel); }
+    else if ((k === 'Enter' || k === 'a' || k === 'A') && !e.target.closest('button:not(.tile)')) { e.preventDefault(); primary(); }
+    else if (k === 'y' || k === 'Y') { const a = APPS[sel]; if (a.kind !== 'add') details(a); }
+    else return;
+    shelf.children[sel]?.focus({ preventScroll: true });
+  });
+
+  $('#depth').addEventListener('input', (e) => {
+    depth = +e.target.value; $('#depthVal').textContent = depth || 'Off';
+    logo.style.setProperty('--depth', `${depth * .32}px`);
+  });
+  const root = document.documentElement;
+  const isDark = () => root.dataset.theme ? root.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+  const syncTheme = () => { $('#themeTxt').textContent = isDark() ? 'Day' : 'Night'; };
+  $('#theme').onclick = () => { root.dataset.theme = isDark() ? 'light' : 'dark'; syncTheme(); blip(587, .05); };
+  matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', syncTheme);
+  $('#sound').onclick = (e) => { sound = !sound; e.currentTarget.setAttribute('aria-pressed', sound); blip(880, .06); };
+
+  const clock = () => { const d = new Date(); $('#clock').textContent = `${d.toLocaleDateString(undefined, { month: 'numeric', day: 'numeric', weekday: 'short' })}  ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`; };
+  clock(); setInterval(clock, 15000);
+
+  syncTheme();
+  renderShelf();
+  select(0, { scroll: false, quiet: true });
+})();
+</script>
