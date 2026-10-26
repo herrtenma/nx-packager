@@ -14,6 +14,7 @@
 #include <mach-o/loader.h>
 #include <unistd.h>
 
+#include "nxart.h"
 #include "nxcontent.h"
 #include "nxtex.h"
 #include "nxzip.h"
@@ -45,6 +46,19 @@ NSDictionary *NxPackManifest(NSString *packPath, NSString **error) {
     if ([m[@"format"] intValue] != 1)
         return fail(error, @"That port pack needs a newer version of the packager."), nil;
     return m;
+}
+
+NSString *NxPackBundleID(NSString *packPath) {
+    NSDictionary *m = NxPackManifest(packPath, nil);
+    NxZip *z = m ? nx_zip_open(packPath.fileSystemRepresentation) : NULL;
+    if (!z) return nil;
+    const NxZipEntry *e = nx_zip_find(z, [[m[@"app"][@"path"] stringByAppendingPathComponent:@"Info.plist"] UTF8String]);
+    uint8_t *p = e ? nx_zip_read(z, e) : NULL;
+    NSDictionary *info = p ? [NSPropertyListSerialization propertyListWithData:[NSData dataWithBytesNoCopy:p length:e->size freeWhenDone:YES]
+                                                                       options:0 format:NULL error:nil] : nil;
+    nx_zip_close(z);
+    NSString *b = [info isKindOfClass:NSDictionary.class] ? info[@"CFBundleIdentifier"] : nil;
+    return [b isKindOfClass:NSString.class] ? b : nil;
 }
 
 NSDictionary *NxDumpInfo(NSString *dumpPath, NSString *keysPath, NSString **error) {
@@ -171,7 +185,7 @@ static BOOL write_ipa(NSString *packPath, NSDictionary *m, NxDump *d, NSString *
         if (ok && (img_n != [mod[@"image_size"] unsignedLongLongValue] || ![sha256_hex(img, img_n) isEqual:mod[@"output_sha256"]]))
             ok = fail(error, [NSString stringWithFormat:@"%@ didn't come out as expected; the port pack may be damaged.", name]);
         // the slot: text section first (hook stubs kept), the rest into the data section
-        uint64_t toff, tsize, doff, dsize;
+        uint64_t toff = 0, tsize = 0, doff = 0, dsize = 0;
         int slot = [mod[@"slot"] intValue];
         char tseg[17], dseg[17];
         snprintf(tseg, sizeof tseg, "__NX%dT", slot), snprintf(dseg, sizeof dseg, "__NX%dD", slot);
@@ -331,6 +345,30 @@ static void consume_frontier(void *ctx, uint64_t romfs_off) {
         if (!c->done[k] && c->last[k] != UINT64_MAX && c->last[k] <= romfs_off) punch(c, k);
 }
 
+// Unkai's art for the port (the pack's "unkai" entry, a .unkai-port) from the game's RomFS into outDir. Only looks: a
+// failure leaves the game without its art, the build goes on.
+static int storage_read(void *ctx, uint64_t off, void *dst, size_t n) { return nx_storage_read(ctx, off, dst, n); }
+static void write_art(NSString *packPath, NSDictionary *m, NxStorage *st, NSString *outDir) {
+    NxZip *z = nx_zip_open(packPath.fileSystemRepresentation);
+    const NxZipEntry *e = z && [m[@"unkai"] isKindOfClass:NSString.class] ? nx_zip_find(z, [m[@"unkai"] UTF8String]) : NULL;
+    uint8_t *p = e ? nx_zip_read(z, e) : NULL;
+    NSString *tmp = [NSTemporaryDirectory() stringByAppendingPathComponent:@"port.unkai-port"];
+    if (p && [[NSData dataWithBytesNoCopy:p length:e->size freeWhenDone:YES] writeToFile:tmp atomically:NO]) {
+        char err[256] = "";
+        NSString *part = [outDir stringByAppendingString:@".part"];
+        [NSFileManager.defaultManager removeItemAtPath:part error:nil];
+        if (!nx_art_resolve(tmp.fileSystemRepresentation, storage_read, st, part.fileSystemRepresentation, err, sizeof err)) {
+            [NSFileManager.defaultManager removeItemAtPath:outDir error:nil];
+            [NSFileManager.defaultManager moveItemAtPath:part toPath:outDir error:nil];
+        } else {
+            NSLog(@"nxpack: no Unkai art: %s", err);
+            [NSFileManager.defaultManager removeItemAtPath:part error:nil];
+        }
+        [NSFileManager.defaultManager removeItemAtPath:tmp error:nil];
+    }
+    nx_zip_close(z);
+}
+
 typedef struct { void (^step)(NSString *, double); NSString *what; double f0, f1; Consume *consume; } RomfsCtx;
 static void romfs_progress(void *ctx, uint64_t done, uint64_t total) {
     RomfsCtx *r = ctx;
@@ -386,6 +424,10 @@ BOOL NxBuildPort(NSString *packPath, NSArray<NSString *> *dumps, NSString *keysP
         NSDictionary *rd = data[@"romfs"];
         NxStorage *st = ok && rd ? nx_romfs_open(b, u, err, sizeof err) : NULL;
         if (ok && rd && !st) ok = fail(error, @(err));
+        if (ok && st && [options[@"unkai_dir"] length]) {
+            step(@"Taking the game's art", fa);
+            write_art(packPath, m, st, options[@"unkai_dir"]);
+        }
         if (ok && st && consume) {
             con.fd = open(base.fileSystemRepresentation, O_RDWR);
             uint64_t size = file_size(base);

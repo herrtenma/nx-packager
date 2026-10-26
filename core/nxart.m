@@ -290,7 +290,7 @@ int nx_art_png(const char *out_path, const uint8_t *rgba, int w, int h, int x, i
     if (x < 0 || y < 0 || x + cw > w || y + ch > h) return -1;
     CGColorSpaceRef cs = CGColorSpaceCreateWithName(kCGColorSpaceSRGB);
     CGDataProviderRef dp = CGDataProviderCreateWithData(NULL, rgba + ((size_t)y * w + x) * 4, (size_t)w * 4 * (ch - 1) + (size_t)cw * 4, NULL);
-    CGImageRef img = CGImageCreate(cw, ch, 8, 32, (size_t)w * 4, cs, kCGBitmapByteOrderDefault | kCGImageAlphaLast, dp, NULL, false,
+    CGImageRef img = CGImageCreate(cw, ch, 8, 32, (size_t)w * 4, cs, (CGBitmapInfo)kCGBitmapByteOrderDefault | (CGBitmapInfo)kCGImageAlphaLast, dp, NULL, false,
                                    kCGRenderingIntentDefault);
     CFURLRef url = CFURLCreateFromFileSystemRepresentation(NULL, (const UInt8 *)out_path, strlen(out_path), false);
     CGImageDestinationRef dst = url ? CGImageDestinationCreateWithURL(url, CFSTR("public.png"), 1, NULL) : NULL;

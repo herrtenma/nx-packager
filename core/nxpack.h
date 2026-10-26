@@ -7,6 +7,9 @@ NS_ASSUME_NONNULL_BEGIN
 // A pack's nxport.json (nil + *error if the file isn't a port pack this packager understands).
 NSDictionary *_Nullable NxPackManifest(NSString *packPath, NSString *_Nullable *_Nullable error);
 
+// The bundle id of a pack's app (its Info.plist), nil if it can't be read.
+NSString *_Nullable NxPackBundleID(NSString *packPath);
+
 // What's in a dump: @{@"title_id": @"010051F0207B2000", @"version": @0, @"display_version": @"1.0.0", @"name": ...}.
 NSDictionary *_Nullable NxDumpInfo(NSString *dumpPath, NSString *keysPath, NSString *_Nullable *_Nullable error);
 
@@ -25,7 +28,8 @@ NSDictionary *_Nullable NxBuildPlan(NSString *packPath, NSArray<NSString *> *dum
 
 // The whole build of such a port: the IPA, and the game folder dataDir (the pack's data.folder). options:
 // @"consume" YES: the game dump is used up while it is read (the .xci's space freed as the build goes, the dumps deleted at
-// the end): needs far less free space, the dump is gone afterwards.
+// the end): needs far less free space, the dump is gone afterwards. @"unkai_dir": where Unkai's art for the port goes
+// (the pack's "unkai" .unkai-port resolved against the game's RomFS, see nxart.h; skipped if the pack has none).
 BOOL NxBuildPort(NSString *packPath, NSArray<NSString *> *dumps, NSString *keysPath, NSString *ipaPath, NSString *dataDir,
                  NSDictionary *_Nullable options, void (^_Nullable progress)(NSString *step, double fraction),
                  NSString *_Nullable *_Nullable error);

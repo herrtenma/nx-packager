@@ -91,6 +91,7 @@ the Packager too, as a folder next to the IPA: the RomFS of the exact game versi
 | `data.stub` | A trimmed `.xci`: the cartridge's program NCA cut to its header and the RomFS's first bytes (header rewritten and encrypted again with the user's `header_key`), and of the cartridge's update partition only the system data NCAs listed (e.g. the shared fonts). Tens of MB instead of the whole cartridge, for a runtime that opens the `.xci` only for these. |
 | `data.aoc` | Each DLC's RomFS as `<dir>/<title id>.romfs` (the DLC `.nsp` files the user put beside the dump), textures converted the same way. |
 | `data.keys` | Copies the user's `prod.keys` into the folder under this name. |
+| `unkai` | Optional: the name of a `.unkai-port` file in the pack (docs/UNKAI_PORT.md). Unkai's packager resolves it against the game's RomFS (base + update, before any texture conversion) into Unkai's `Ports/<bundle id>/`. Missing art never fails a build. |
 
 Free space: about the RomFS's size plus the DLC's (the dumps stay). With the build option **consume** (the app's "Free up
 space while building"), the `.xci` is used up as it is read: each 16 MB of it is released (APFS hole punching) once

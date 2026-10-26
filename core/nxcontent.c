@@ -417,7 +417,7 @@ int nx_dump_info(NxDump *d, NxGameInfo *info, char *err, size_t errlen) {
         if (meta) info->title_id = meta->title_id;
     }
     Section s;
-    size_t n;
+    size_t n = 0;
     uint8_t *cnmt = meta && !section_open(d, meta, 0, &s) ? pfs0_file(d, &s, "*.cnmt", &n) : NULL;
     if (cnmt && n >= 0x10) memcpy(&info->version, cnmt + 8, 4);
     free(cnmt);
