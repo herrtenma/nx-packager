@@ -62,7 +62,40 @@ A module's *image* is the NSO's segments placed at their memory offsets, decompr
 | `after_install` | Shown to the user once the IPA is built. |
 | `modules[].source` | `exefs:<file>`: the game's module from the dump's ExeFS. Its image must hash to `input_sha256`; then the `.nxwp` patch is applied. Any other value: a file in the pack used as is. |
 | `modules[].output_sha256` | The result must hash to this before it goes into the slot: the app gets exactly the code the port was built and tested with. |
+| `modules[].layout` | Optional: `[[from, to, size], ...]`. The port moved parts of the module (e.g. a segment): the image becomes `image_size` zero bytes with each range of the game's image copied from `from` to `to`, before the patch is applied. |
 | `modules[].hooks` | Byte ranges of the `__text` section the Packager must not overwrite (the port's stubs). |
+
+## Ports that need the game's data (`update`, `data`)
+
+A port whose runtime reads the game's files itself (instead of the user choosing the `.xci` in the app) gets them from
+the Packager too, as a folder next to the IPA: the RomFS of the exact game version the port was made for, a trimmed
+`.xci`, the DLC the user owns, and their `prod.keys`. Optional manifest sections:
+
+```json
+ "update": {"version": 1114112, "display_version": "1.9.0"},
+ "data": {
+  "folder": "botw",
+  "romfs": {"file": "romfs.bin", "textures": "astc", "size_table": "System/Resource/ResourceSizeTable.product.srsizetable"},
+  "stub": {"file": "game.xci", "system_data": ["0100000000000810", "0100000000000811", "0100000000000812",
+                                               "0100000000000813", "0100000000000814"]},
+  "aoc": {"dir": "aoc", "textures": "astc"},
+  "keys": "prod.keys"
+ }
+```
+
+| Field | Meaning |
+|---|---|
+| `update` | The update the port needs (`.nsp` from the user's Switch, title id = the game's + 0x800): its version. Modules with `exefs:` sources then come from the update's ExeFS, and the RomFS is the base game's with the update's patch applied. |
+| `data.folder` | The folder's name (the port's own Documents folder on the phone). |
+| `data.romfs` | Writes the game's RomFS (base + update) as one plain image, `file`. `textures: "astc"`: BC textures (BNTX in Yaz0 / SARC / BFRES) become ASTC, which iPhone GPUs sample natively; `size_table`: the game's resource size table, raised for every resource that grew (Breath of the Wild). |
+| `data.stub` | A trimmed `.xci`: the cartridge's program NCA cut to its header and the RomFS's first bytes (header rewritten and encrypted again with the user's `header_key`), and of the cartridge's update partition only the system data NCAs listed (e.g. the shared fonts). Tens of MB instead of the whole cartridge, for a runtime that opens the `.xci` only for these. |
+| `data.aoc` | Each DLC's RomFS as `<dir>/<title id>.romfs` (the DLC `.nsp` files the user put beside the dump), textures converted the same way. |
+| `data.keys` | Copies the user's `prod.keys` into the folder under this name. |
+
+Free space: about the RomFS's size plus the DLC's (the dumps stay). With the build option **consume** (the app's "Free up
+space while building"), the `.xci` is used up as it is read: each 16 MB of it is released (APFS hole punching) once
+nothing later reads it, and the dumps are deleted at the end, so the build needs only a few GB beyond the finished folder.
+A build that fails then leaves a partly emptied dump that has to be copied again.
 
 ## Patch files (`.nxwp`)
 
