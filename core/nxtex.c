@@ -19,7 +19,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <TargetConditionals.h>
 #include <sys/mman.h>
+#include <sys/qos.h>
 #include <sys/sysctl.h>
 #include <unistd.h>
 #include <zlib.h>
@@ -532,6 +534,9 @@ static int candidate(const uint8_t *b, uint64_t n) {
 
 static void *worker(void *arg) {
     Pass *p = arg;
+#if TARGET_OS_IPHONE
+    pthread_set_qos_class_self_np(QOS_CLASS_USER_INTERACTIVE, 0);   // keeps the workers on the performance cores
+#endif
     for (;;) {
         pthread_mutex_lock(&p->rlock);
         pthread_mutex_lock(&p->mlock);
@@ -657,6 +662,11 @@ int nx_romfs_write(NxStorage *in, const char *out_path, const NxTexOptions *o, N
     int nt = o->threads;
     if (nt <= 0) {
         size_t len = sizeof nt;
+#if TARGET_OS_IPHONE
+        // the phone's efficiency cores are many times slower at ASTC encoding than its performance cores, and the
+        // output is written in file order: a big file on an E-core held the whole build (A15: 2 P + 4 E)
+        if (sysctlbyname("hw.perflevel0.logicalcpu", &nt, &len, NULL, 0) || nt <= 0)
+#endif
         if (sysctlbyname("hw.ncpu", &nt, &len, NULL, 0) || nt <= 0) nt = 4;
     }
     if (!o->convert) nt = 1;

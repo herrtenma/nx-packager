@@ -9,7 +9,7 @@
 
 typedef struct {
     int convert;              // 0: copy only (the RomFS as it is)
-    int threads;              // workers; 0 = one per CPU core
+    int threads;              // workers; 0 = one per CPU core (iOS: per performance core)
     float quality;            // astcenc effort, 0..100 (10 = fast)
     uint64_t max_inflight;    // file data held in memory at once (working copies included); 0 = 256 MB
     const char *rstb;         // the game's resource size table (BOTW: "System/Resource/ResourceSizeTable.product.srsizetable"):
