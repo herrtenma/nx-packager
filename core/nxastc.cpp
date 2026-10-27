@@ -31,6 +31,25 @@ int nx_astc_encode(int kind, int bw, int bh, const uint8_t *rgba, int w, int h, 
     astcenc_compress_reset(ctx);
     return e == ASTCENC_SUCCESS ? 0 : -4;
 }
+// ASTC blocks (row order, bw x bh texels each) -> RGBA8 at w x h (whole blocks: w, h multiples of bw, bh). LDR profile:
+// the stored values, so sRGB textures come out sRGB encoded (as a PNG wants). 0 on success.
+int nx_astc_decode(int bw, int bh, const uint8_t *blocks, size_t len, int w, int h, uint8_t *rgba) {
+    static thread_local astcenc_context *dec[13][13];
+    if (bw < 4 || bw > 12 || bh < 4 || bh > 12) return -1;
+    astcenc_context *&ctx = dec[bw][bh];
+    if (!ctx) {
+        astcenc_config cfg;
+        if (astcenc_config_init(ASTCENC_PRF_LDR, bw, bh, 1, 0, ASTCENC_FLG_DECOMPRESS_ONLY, &cfg) != ASTCENC_SUCCESS) return -2;
+        if (astcenc_context_alloc(&cfg, 1, &ctx) != ASTCENC_SUCCESS) return -3;
+    }
+    astcenc_image img;
+    void *slices[1] = {(void *)rgba};
+    img.dim_x = w, img.dim_y = h, img.dim_z = 1, img.data_type = ASTCENC_TYPE_U8, img.data = slices;
+    astcenc_swizzle sw = {ASTCENC_SWZ_R, ASTCENC_SWZ_G, ASTCENC_SWZ_B, ASTCENC_SWZ_A};
+    astcenc_error e = astcenc_decompress_image(ctx, blocks, len, &img, &sw, 0);
+    astcenc_decompress_reset(ctx);
+    return e == ASTCENC_SUCCESS ? 0 : -4;
+}
 void nx_astc_thread_done(void) {
     for (int k = 0; k < KINDS; k++)
         for (int b = 0; b < BLOCKS; b++)

@@ -2,7 +2,7 @@
 #   make         -> build/nxpack (Mac)
 #   make ios     -> build/ios/Packager.ipa
 all: build/nxpack
-CORE    = core/nxcontent.c core/nxzip.c core/nxtex.c core/nxart.m core/nxpack.m
+CORE    = core/nxcontent.c core/nxzip.c core/nxtex.c core/nxart.m core/nxpack.m core/nxzstd.c
 CFLAGS  = -O2 -g -Wall -Wextra -Wno-unused-parameter -fobjc-arc -Icore -ffile-prefix-map=$(CURDIR)=.
 # astc-encoder (third_party, Apache 2.0) + its C entry (core/nxastc.cpp): objects per target
 ASTCDIR = third_party/astc-encoder

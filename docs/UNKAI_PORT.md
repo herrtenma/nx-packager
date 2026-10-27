@@ -38,10 +38,11 @@ SARC are opened on the way), `texture` a BNTX texture name (the `^x` suffix may 
 | `keep` | keep only pixels in an HSV box: `hue` (degrees), `saturation`, `value` ranges (soft edges; use an upper bound above 1 to include 1), `invert`, `region` `[x, y, w, h]` (outside it is cleared; the image keeps its size). For splitting one logo texture into layers |
 | `tint` | `["#top", "#bottom"]`: RGB multiplied by a vertical gradient |
 
+`icon` (optional, one image): also written as `icon.png`, the tile icon (else the app's own). Formats read: RGBA8, R8, BC1-BC5, BC7, ASTC (all block sizes); containers Yaz0, zstd (`.zs`, no dictionary), SARC.
+
 Wallpapers: `layers` back to front, `depth` 0 = background (deeper layers drift further: parallax), `focus` = the
 point kept in view while cropping and drifting, `tone` light / dark. Emblem layers: `z` (points in front of the card
-plane; negative = behind), `extrude` (thickness in points), `side` (extrusion colour). Formats read: RGBA8, R8,
-BC1-BC5, BC7.
+plane; negative = behind), `extrude` (thickness in points), `side` (extrusion colour).
 
 The packager writes each image as `artN.png` next to `unkai.json` (port.json with `"image": "artN.png"` added) in
 LiveContainer's `Documents/Unkai/Ports/<bundle id>/`, where Unkai reads it.

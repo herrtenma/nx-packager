@@ -1,5 +1,5 @@
 // See nxart.h. RomFS: the level-3 image (header of ten u64: directory / file hash and meta tables, data offset);
-// SARC: SFAT nodes with SFNT names; BNTX: BRTI blocks (see nxtex.c for their fields), level 0 of layer 0 only.
+// Containers: Yaz0 / zstd, SARC (SFAT nodes with SFNT names); BNTX: BRTI blocks (see nxtex.c for their fields), level 0 of layer 0 only.
 #import <Foundation/Foundation.h>
 #import <ImageIO/ImageIO.h>
 #include <math.h>
@@ -86,6 +86,39 @@ bad:
     return NULL;
 }
 
+// zstd (core/nxzstd.c): a .zs file's single frame, without a dictionary. The size comes from the frame header, or is
+// found by doubling the buffer.
+size_t ZSTD_decompress(void *dst, size_t dstCapacity, const void *src, size_t compressedSize);
+unsigned long long ZSTD_getFrameContentSize(const void *src, size_t srcSize);
+unsigned ZSTD_isError(size_t code);
+static int is_zstd(const uint8_t *s, size_t n) { return n >= 4 && s[0] == 0x28 && s[1] == 0xb5 && s[2] == 0x2f && s[3] == 0xfd; }
+static uint8_t *unzstd(const uint8_t *s, size_t n, size_t *on) {
+    unsigned long long want = ZSTD_getFrameContentSize(s, n);
+    size_t cap = want < (1ull << 31) ? (size_t)want : n * 4;
+    for (int tries = 0; tries < 6; tries++, cap *= 2) {
+        if (cap > (512u << 20)) break;
+        uint8_t *d = malloc(cap ? cap : 1);
+        if (!d) return NULL;
+        size_t r = ZSTD_decompress(d, cap, s, n);
+        if (!ZSTD_isError(r)) {
+            *on = r;
+            return d;
+        }
+        free(d);
+        if (want < (1ull << 31)) break;   // known size and still an error: corrupt
+    }
+    return NULL;
+}
+// A Yaz0 or zstd buffer decompressed (malloc'd, *n updated), else NULL (not compressed, or failed: *bad set).
+static uint8_t *unpack(const uint8_t *b, size_t *n, int *bad) {
+    uint8_t *d = NULL;
+    if (*n >= 4 && !memcmp(b, "Yaz0", 4)) d = yaz0(b, *n, n);
+    else if (is_zstd(b, *n)) d = unzstd(b, *n, n);
+    else return NULL;
+    *bad = !d;
+    return d;
+}
+
 // Each SARC entry: fn(name, data, size); fn returns nonzero to stop. Little-endian SARCs only (all Switch games).
 static void sarc_each(const uint8_t *b, size_t n, int (^fn)(const char *name, const uint8_t *d, size_t dn)) {
     if (n < 0x14 || memcmp(b, "SARC", 4) || b[6] != 0xff) return;
@@ -109,11 +142,10 @@ static void sarc_each(const uint8_t *b, size_t n, int (^fn)(const char *name, co
 
 // The file at `path` inside a container buffer (path "" = the buffer itself), decompressed: malloc'd copy or NULL.
 static uint8_t *inner_file(const uint8_t *b, size_t n, const char *path, size_t *on) {
-    uint8_t *dec = NULL;
-    if (n >= 4 && !memcmp(b, "Yaz0", 4)) {
-        if (!(dec = yaz0(b, n, &n))) return NULL;
-        b = dec;
-    }
+    int bad = 0;
+    uint8_t *dec = unpack(b, &n, &bad);
+    if (bad) return NULL;
+    if (dec) b = dec;
     uint8_t *r = NULL;
     if (!*path) {
         if (dec) r = dec, *on = n, dec = NULL;
@@ -146,10 +178,17 @@ fail:
 }
 
 // ---- BNTX -----------------------------------------------------------------------------------------------------------
-typedef struct { int type, bw, bpb; const char *name; } Fmt;
+typedef struct { int type, bw, bpb; const char *name; int bh; } Fmt;   // bh: block height when not bw (ASTC)
+int nx_astc_decode(int bw, int bh, const uint8_t *blocks, size_t len, int w, int h, uint8_t *rgba);   // core/nxastc.cpp
 static const Fmt *fmt_of(uint32_t f) {
-    static const Fmt fmts[] = {{0x02, 1, 1, "R8"}, {0x0b, 1, 4, "RGBA8"}, {0x1a, 4, 8, "BC1"}, {0x1b, 4, 16, "BC2"},
-                               {0x1c, 4, 16, "BC3"}, {0x1d, 4, 8, "BC4"}, {0x1e, 4, 16, "BC5"}, {0x20, 4, 16, "BC7"}};
+    static const Fmt fmts[] = {{0x02, 1, 1, "R8", 0}, {0x0b, 1, 4, "RGBA8", 0}, {0x1a, 4, 8, "BC1", 0}, {0x1b, 4, 16, "BC2", 0},
+                               {0x1c, 4, 16, "BC3", 0}, {0x1d, 4, 8, "BC4", 0}, {0x1e, 4, 16, "BC5", 0}, {0x20, 4, 16, "BC7", 0},
+                               // ASTC (Switch 2 era layouts: Tomodachi's title and menus)
+                               {0x2d, 4, 16, "ASTC4x4", 4}, {0x2e, 5, 16, "ASTC5x4", 4}, {0x2f, 5, 16, "ASTC5x5", 5},
+                               {0x30, 6, 16, "ASTC6x5", 5}, {0x31, 6, 16, "ASTC6x6", 6}, {0x32, 8, 16, "ASTC8x5", 5},
+                               {0x33, 8, 16, "ASTC8x6", 6}, {0x34, 8, 16, "ASTC8x8", 8}, {0x35, 10, 16, "ASTC10x5", 5},
+                               {0x36, 10, 16, "ASTC10x6", 6}, {0x37, 10, 16, "ASTC10x8", 8}, {0x38, 10, 16, "ASTC10x10", 10},
+                               {0x39, 12, 16, "ASTC12x10", 10}, {0x3a, 12, 16, "ASTC12x12", 12}};
     for (size_t i = 0; i < sizeof fmts / sizeof *fmts; i++)
         if (fmts[i].type == (int)(f >> 8 & 255)) return &fmts[i];
     return NULL;
@@ -185,13 +224,15 @@ static uint8_t *brti_decode(const uint8_t *b, size_t n, const uint8_t *r, int *o
     uint8_t *lin = NULL, *rgba = NULL;
     if (!ft) FAIL("texture format %#x is not supported", f);
     if (!w || !h || w > 8192 || h > 8192 || ptrs + 8 > n || (base = rd64(b + ptrs)) + size > n) FAIL("bad texture header");
-    uint32_t wb = (w + ft->bw - 1) / ft->bw, hb = (h + ft->bw - 1) / ft->bw;
+    int bh = ft->bh ? ft->bh : ft->bw;
+    uint32_t wb = (w + ft->bw - 1) / ft->bw, hb = (h + bh - 1) / bh;
     lin = malloc((size_t)wb * hb * ft->bpb);
-    rgba = calloc((size_t)wb * ft->bw * hb * ft->bw, 4);
+    rgba = calloc((size_t)wb * ft->bw * hb * bh, 4);
     if (!lin || !rgba) FAIL("out of memory");
     if (nx_bl_deswizzle(b + base, size, lin, wb, hb, ft->bpb, 1 << (layout & 7))) FAIL("texture data too short");
     size_t pw = (size_t)wb * ft->bw;   // padded width
-    for (uint32_t by = 0; by < hb; by++)
+    if (ft->bh && nx_astc_decode(ft->bw, bh, lin, (size_t)wb * hb * 16, (int)pw, (int)(hb * bh), rgba)) FAIL("ASTC decode failed");
+    for (uint32_t by = 0; by < hb && !ft->bh; by++)
         for (uint32_t bx = 0; bx < wb; bx++) {
             const uint8_t *s = lin + ((size_t)by * wb + bx) * ft->bpb;
             uint8_t *d = rgba + ((size_t)by * ft->bw * pw + (size_t)bx * ft->bw) * 4;
@@ -250,11 +291,10 @@ uint8_t *nx_art_texture(NxArtRead rd, void *ctx, const char *path, const char *n
 }
 
 static void list_in(const uint8_t *b, size_t n, const char *path, void (^fn)(const char *, const uint8_t *, size_t)) {
-    uint8_t *dec = NULL;
-    if (n >= 4 && !memcmp(b, "Yaz0", 4)) {
-        if (!(dec = yaz0(b, n, &n))) return;
-        b = dec;
-    }
+    int bad = 0;
+    uint8_t *dec = unpack(b, &n, &bad);
+    if (bad) return;
+    if (dec) b = dec;
     if (n >= 4 && !memcmp(b, "SARC", 4))
         sarc_each(b, n, ^int(const char *name, const uint8_t *d, size_t dn) {
             char sub[1024];
@@ -422,6 +462,13 @@ int nx_art_resolve(const char *port, NxArtRead rd, void *ctx, const char *out_di
         if (![root isKindOfClass:NSMutableDictionary.class]) { snprintf(err, errlen, "%s: no readable port.json", port); return -1; }
         int count = 0;
         if (resolve_node(root, rd, ctx, dir, &count, err, errlen)) return -1;
+        // "icon": {file, texture}: also as icon.png, the tile icon Unkai uses before the app's own
+        NSString *icon = [root[@"icon"] isKindOfClass:NSDictionary.class] ? root[@"icon"][@"image"] : nil;
+        if ([icon isKindOfClass:NSString.class]) {
+            NSString *to = [dir stringByAppendingPathComponent:@"icon.png"];
+            [fm removeItemAtPath:to error:nil];
+            [fm copyItemAtPath:[dir stringByAppendingPathComponent:icon] toPath:to error:nil];
+        }
         NSData *out = [NSJSONSerialization dataWithJSONObject:root options:NSJSONWritingPrettyPrinted | NSJSONWritingSortedKeys error:nil];
         if (![out writeToFile:[dir stringByAppendingPathComponent:@"unkai.json"] atomically:YES]) {
             snprintf(err, errlen, "%s: could not write unkai.json", out_dir);
